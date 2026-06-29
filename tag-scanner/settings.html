@@ -30,6 +30,15 @@
     </div>
 
     <div class="settings-section">
+      <h2>Google Gemini 2.0 Flash</h2>
+      <p>Used for accurate handwriting OCR. Get your key at aistudio.google.com. Stored only in your browser.</p>
+      <div class="settings-field">
+        <label for="gemini-key">Gemini API Key</label>
+        <input type="password" id="gemini-key" placeholder="AIza...">
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h2>Stripe</h2>
       <p>Used to create products in your Stripe account. Use your <strong>secret</strong> key (sk_live_... or sk_test_...). Stored only in your browser — never sent anywhere except Stripe's API.</p>
       <div class="settings-field">
@@ -47,6 +56,7 @@
 
     const settings = getSettings();
     document.getElementById('anthropic-key').value = settings.anthropicKey || '';
+    document.getElementById('gemini-key').value = localStorage.getItem('gemini_api_key') || '';
     document.getElementById('stripe-key').value = settings.stripeKey || '';
 
     document.getElementById('btn-save-settings').addEventListener('click', () => {
@@ -54,6 +64,7 @@
         anthropicKey: document.getElementById('anthropic-key').value.trim(),
         stripeKey: document.getElementById('stripe-key').value.trim()
       });
+      localStorage.setItem('gemini_api_key', document.getElementById('gemini-key').value.trim());
       const notice = document.getElementById('save-notice');
       notice.style.display = 'block';
       setTimeout(() => { notice.style.display = 'none'; }, 2000);

@@ -32,7 +32,7 @@ const fileInput = document.getElementById('file-input');
 async function startCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } }
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1024 }, height: { ideal: 960 } }
     });
     video.srcObject = stream;
     video.classList.remove('hidden');
@@ -152,6 +152,88 @@ async function processImage(blob) {
 }
 
 async function runOCR(blob) {
+  // Try Gemini first
+  const geminiResult = await runGeminiOCR(blob);
+  if (geminiResult !== null) {
+    return geminiResult;
+  }
+  // Fall back to Tesseract.js
+  showStatus('Falling back to Tesseract OCR...');
+  return await runTesseractOCR(blob);
+}
+
+async function runGeminiOCR(blob) {
+  showStatus('Extracting text with Gemini...');
+  try {
+    const apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) {
+      console.warn('No Gemini API key configured');
+      return null;
+    }
+
+    // Convert blob to base64
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let binaryString = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binaryString += String.fromCharCode(uint8Array[i]);
+    }
+    const base64 = btoa(binaryString);
+
+    // Call Gemini API directly
+    const response = await fetch(
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=' + apiKey,
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              // 1. Changed inline_data and mime_type to camelCase for raw JSON
+              inlineData: {
+                mimeType: 'image/jpeg',
+                data: base64,
+              },
+            },
+            {
+              text: 'Extract all visible text from this image. Return only the text, line by line. Be accurate with handwriting.',
+            },
+          ],
+        },
+      ],
+      // 2. Moved mediaResolution inside generationConfig where the JSON parser expects it
+      generationConfig: {
+        mediaResolution: 'MEDIA_RESOLUTION_LOW',
+      }
+    }),
+  }
+);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Gemini API error: ${error.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!text) {
+      return '';
+    }
+
+    return text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .join('\n');
+  } catch (err) {
+    console.warn('Gemini OCR failed:', err);
+    return null;
+  }
+}
+
+async function runTesseractOCR(blob) {
   const { createWorker } = Tesseract;
   const worker = await createWorker('eng', 1, {
     logger: m => {
