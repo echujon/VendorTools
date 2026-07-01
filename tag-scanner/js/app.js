@@ -1,19 +1,27 @@
-import { getRecords, saveRecord, updateRecord, deleteRecord, exportCSV, getSettings } from './storage.js';
+import { getRecords, saveRecord, updateRecord, deleteRecord, exportCSV, getSettings, findByUniqueId } from './storage.js';
 
 // --- State ---
 let stream = null;
 let capturedBlob = null;
 let cameraActive = false;
+let matchedRecord = null;
 
 // --- DOM ---
 const video = document.getElementById('video');
 const previewImg = document.getElementById('preview-img');
 const statusBar = document.getElementById('status-bar');
 const statusMsg = document.getElementById('status-msg');
+const noMatchCard = document.getElementById('no-match-card');
+const matchCard = document.getElementById('match-card');
 const resultCard = document.getElementById('result-card');
+const resultCardTitle = document.getElementById('result-card-title');
+const fieldUniqueId = document.getElementById('field-unique-id');
 const fieldName = document.getElementById('field-name');
 const fieldPrice = document.getElementById('field-price');
+const fieldQuantity = document.getElementById('field-quantity');
+const fieldLocation = document.getElementById('field-location');
 const ocrRaw = document.getElementById('ocr-raw');
+const ocrRawSelectable = document.getElementById('ocr-raw-selectable');
 const recordsList = document.getElementById('records-list');
 const scanOverlay = document.querySelector('.scan-overlay');
 const scanPlaceholder = document.querySelector('.scan-placeholder');
@@ -22,6 +30,12 @@ const scanPlaceholder = document.querySelector('.scan-placeholder');
 const btnCamera = document.getElementById('btn-camera');
 const btnCapture = document.getElementById('btn-capture');
 const btnUpload = document.getElementById('btn-upload');
+const btnNewItem = document.getElementById('btn-new-item');
+const btnDiscardScan = document.getElementById('btn-discard-scan');
+const btnEditMatch = document.getElementById('btn-edit-match');
+const btnNotAMatch = document.getElementById('btn-not-a-match');
+const btnDiscardMatch = document.getElementById('btn-discard-match');
+const btnUseSelection = document.getElementById('btn-use-selection');
 const btnSave = document.getElementById('btn-save');
 const btnStripe = document.getElementById('btn-stripe');
 const btnDiscard = document.getElementById('btn-discard');
@@ -124,15 +138,18 @@ function loadFile(file) {
 }
 
 // --- OCR + AI ---
+let lastRawText = '';
+
 async function processImage(blob) {
-  resultCard.classList.remove('visible');
+  hideAllResultCards();
   showStatus('Running OCR...');
 
   let rawText = '';
   try {
     rawText = await runOCR(blob);
   } catch (err) {
-    showStatus('OCR failed: ' + err.message);
+    hideStatus();
+    toast('OCR failed: ' + err.message, 'error');
     return;
   }
 
@@ -142,11 +159,50 @@ async function processImage(blob) {
     return;
   }
 
-  const parsed = parseOCR(rawText);
   hideStatus();
+  lastRawText = rawText;
+
+  const existing = findByUniqueId(rawText);
+  if (existing) {
+    showMatchCard(existing);
+  } else {
+    showNoMatchCard(rawText);
+  }
+}
+
+function hideAllResultCards() {
+  noMatchCard.classList.remove('visible');
+  matchCard.classList.remove('visible');
+  resultCard.classList.remove('visible');
+}
+
+function showNoMatchCard(rawText) {
   ocrRaw.textContent = rawText;
-  fieldName.value = parsed.name || '';
-  fieldPrice.value = parsed.price || '';
+  noMatchCard.classList.add('visible');
+  noMatchCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function showMatchCard(record) {
+  matchedRecord = record;
+  document.getElementById('match-uniqueId').textContent = record.uniqueId || '—';
+  document.getElementById('match-name').textContent = record.name || '—';
+  document.getElementById('match-price').textContent = record.price ? `$${record.price}` : '—';
+  document.getElementById('match-quantity').textContent = record.quantity || '—';
+  document.getElementById('match-location').textContent = record.location || '—';
+  matchCard.classList.add('visible');
+  matchCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function showNewItemForm(rawText, prefill = {}) {
+  resultCardTitle.textContent = prefill.id ? 'Edit Item' : 'New Item';
+  ocrRawSelectable.textContent = rawText || '';
+  fieldUniqueId.value = prefill.uniqueId || '';
+  fieldName.value = prefill.name || '';
+  fieldPrice.value = prefill.price || '';
+  fieldQuantity.value = prefill.quantity || '';
+  fieldLocation.value = prefill.location || '';
+  resultCard.dataset.editId = prefill.id || '';
+  hideAllResultCards();
   resultCard.classList.add('visible');
   resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -249,11 +305,6 @@ async function runTesseractOCR(blob) {
   return result.data.text;
 }
 
-function parseOCR(rawText) {
-  const name = rawText.split('\n').map(l => l.trim()).filter(Boolean).join(' ');
-  return { name, price: '' };
-}
-
 // --- Stripe ---
 async function pushToStripe(record) {
   const { stripeKey } = getSettings();
@@ -298,33 +349,74 @@ async function pushToStripe(record) {
   return { productId: product.id, priceId: price.id };
 }
 
-// --- Save / Discard ---
+// --- No-match card actions ---
+btnNewItem.addEventListener('click', () => {
+  showNewItemForm(lastRawText);
+});
+
+btnDiscardScan.addEventListener('click', resetScanArea);
+
+// --- Match card actions ---
+btnEditMatch.addEventListener('click', () => {
+  showNewItemForm(lastRawText, matchedRecord);
+});
+
+btnNotAMatch.addEventListener('click', () => {
+  matchedRecord = null;
+  showNewItemForm(lastRawText);
+});
+
+btnDiscardMatch.addEventListener('click', resetScanArea);
+
+// --- Unique identifier selection ---
+btnUseSelection.addEventListener('click', () => {
+  const selection = window.getSelection().toString().trim();
+  if (!selection) { toast('Highlight some text first', 'error'); return; }
+  fieldUniqueId.value = selection;
+});
+
+// --- Save / Discard (new item / edit form) ---
+function collectFormData() {
+  return {
+    uniqueId: fieldUniqueId.value.trim(),
+    name: fieldName.value.trim(),
+    price: fieldPrice.value.trim(),
+    quantity: fieldQuantity.value.trim(),
+    location: fieldLocation.value.trim()
+  };
+}
+
 btnSave.addEventListener('click', () => {
-  const name = fieldName.value.trim();
-  const price = fieldPrice.value.trim();
-  if (!name && !price) { toast('Add a name or price first', 'error'); return; }
-  saveRecord({ name, price });
-  resultCard.classList.remove('visible');
-  capturedBlob = null;
-  previewImg.classList.add('hidden');
-  scanPlaceholder.style.display = 'flex';
+  const data = collectFormData();
+  if (!data.uniqueId) { toast('Set a unique identifier first', 'error'); return; }
+  if (!data.name && !data.price) { toast('Add a name or price first', 'error'); return; }
+  const editId = resultCard.dataset.editId ? Number(resultCard.dataset.editId) : null;
+  if (editId) {
+    updateRecord(editId, data);
+  } else {
+    saveRecord(data);
+  }
+  resetScanArea();
   renderRecords();
   toast('Saved!', 'success');
 });
 
 btnStripe.addEventListener('click', async () => {
-  const name = fieldName.value.trim();
-  const price = fieldPrice.value.trim();
-  if (!name || !price) { toast('Name and price required', 'error'); return; }
+  const data = collectFormData();
+  if (!data.uniqueId) { toast('Set a unique identifier first', 'error'); return; }
+  if (!data.name || !data.price) { toast('Name and price required', 'error'); return; }
   btnStripe.disabled = true;
   showStatus('Pushing to Stripe...');
   try {
-    const ids = await pushToStripe({ name, price });
-    const records = saveRecord({ name, price, stripeId: ids.productId, priceId: ids.priceId, sentToStripe: true });
-    resultCard.classList.remove('visible');
-    capturedBlob = null;
-    previewImg.classList.add('hidden');
-    scanPlaceholder.style.display = 'flex';
+    const ids = await pushToStripe(data);
+    const editId = resultCard.dataset.editId ? Number(resultCard.dataset.editId) : null;
+    const stripeFields = { ...data, stripeId: ids.productId, priceId: ids.priceId, sentToStripe: true };
+    if (editId) {
+      updateRecord(editId, stripeFields);
+    } else {
+      saveRecord(stripeFields);
+    }
+    resetScanArea();
     renderRecords();
     hideStatus();
     toast('Saved + pushed to Stripe!', 'success');
@@ -336,12 +428,15 @@ btnStripe.addEventListener('click', async () => {
   }
 });
 
-btnDiscard.addEventListener('click', () => {
-  resultCard.classList.remove('visible');
+btnDiscard.addEventListener('click', resetScanArea);
+
+function resetScanArea() {
+  hideAllResultCards();
+  matchedRecord = null;
   capturedBlob = null;
   previewImg.classList.add('hidden');
   scanPlaceholder.style.display = 'flex';
-});
+}
 
 // --- Records ---
 function renderRecords() {
@@ -354,7 +449,7 @@ function renderRecords() {
     <div class="record-item" data-id="${r.id}">
       <div class="record-info">
         <div class="record-name">${esc(r.name || '(no name)')}</div>
-        <div class="record-meta">${new Date(r.createdAt).toLocaleDateString()} ${r.sentToStripe ? '· In Stripe' : ''}</div>
+        <div class="record-meta">${esc(r.uniqueId || '')}${r.uniqueId ? ' · ' : ''}${r.quantity ? `Qty ${esc(r.quantity)} · ` : ''}${esc(r.location || '')}${r.location ? ' · ' : ''}${new Date(r.createdAt).toLocaleDateString()} ${r.sentToStripe ? '· In Stripe' : ''}</div>
       </div>
       <div class="record-price">$${esc(r.price || '—')}</div>
       <div class="record-actions">
@@ -428,8 +523,10 @@ function esc(str) {
 }
 
 // --- Init ---
+// Service worker registration disabled during active development —
+// its cache-first strategy was serving stale app.js/index.html across reloads.
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(() => {});
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
 }
 renderRecords();
 scanOverlay.style.display = 'none';

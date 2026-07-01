@@ -185,15 +185,25 @@ main { flex: 1; padding: 1.25rem; display: flex; flex-direction: column; gap: 1.
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Result card */
-#result-card {
+#result-card, #no-match-card, #match-card {
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 1.25rem;
   display: none;
 }
-#result-card.visible { display: block; }
-#result-card h2 { font-size: 1rem; margin-bottom: 1rem; color: var(--muted); }
+#result-card.visible, #no-match-card.visible, #match-card.visible { display: block; }
+#result-card h2, #no-match-card h2, #match-card h2 { font-size: 1rem; margin-bottom: 1rem; color: var(--muted); }
+
+.unique-id-row { display: flex; gap: 0.5rem; }
+.unique-id-row input { flex: 1; }
+.unique-id-row .btn { flex: unset; white-space: nowrap; }
+
+.ocr-raw.selectable { user-select: text; cursor: text; }
+
+.match-info { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.25rem; }
+.match-row { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.95rem; }
+.match-label { color: var(--muted); font-weight: 600; }
 
 .field-group { display: flex; flex-direction: column; gap: 0.875rem; margin-bottom: 1.25rem; }
 

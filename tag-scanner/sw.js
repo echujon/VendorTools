@@ -1,4 +1,4 @@
-const CACHE = 'tag-scanner-v1';
+const CACHE = 'tag-scanner-v2';
 const ASSETS = [
   '/', '/index.html', '/settings.html', '/css/style.css', '/js/app.js', '/js/storage.js',
   'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'

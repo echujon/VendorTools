@@ -65,11 +65,46 @@
       <span id="status-msg">Processing...</span>
     </div>
 
-    <!-- Result -->
-    <div id="result-card">
-      <h2>Parsed Tag</h2>
+    <!-- OCR result: no match yet -->
+    <div id="no-match-card">
+      <h2>Scanned Text</h2>
       <div class="ocr-raw-label">Raw OCR text</div>
       <div class="ocr-raw" id="ocr-raw"></div>
+      <div class="result-actions">
+        <button class="btn btn-primary" id="btn-new-item">+ New Item</button>
+        <button class="btn btn-secondary" id="btn-discard-scan">Discard</button>
+      </div>
+    </div>
+
+    <!-- Matched existing item (read-only) -->
+    <div id="match-card">
+      <h2>Matched Item</h2>
+      <div class="match-info">
+        <div class="match-row"><span class="match-label">Unique ID</span><span id="match-uniqueId"></span></div>
+        <div class="match-row"><span class="match-label">Name</span><span id="match-name"></span></div>
+        <div class="match-row"><span class="match-label">Price</span><span id="match-price"></span></div>
+        <div class="match-row"><span class="match-label">Quantity</span><span id="match-quantity"></span></div>
+        <div class="match-row"><span class="match-label">Location</span><span id="match-location"></span></div>
+      </div>
+      <div class="result-actions">
+        <button class="btn btn-primary" id="btn-edit-match">Edit</button>
+        <button class="btn btn-secondary" id="btn-not-a-match">Not a match — New Item</button>
+        <button class="btn btn-secondary" id="btn-discard-match">Discard</button>
+      </div>
+    </div>
+
+    <!-- New item / edit form -->
+    <div id="result-card">
+      <h2 id="result-card-title">New Item</h2>
+      <div class="ocr-raw-label">Raw OCR text — select the unique identifier</div>
+      <div class="ocr-raw selectable" id="ocr-raw-selectable"></div>
+      <div class="field">
+        <label for="field-unique-id">Unique Identifier</label>
+        <div class="unique-id-row">
+          <input type="text" id="field-unique-id" placeholder="Highlight text above, then Use Selection">
+          <button class="btn btn-outline" id="btn-use-selection" type="button">Use Selection</button>
+        </div>
+      </div>
       <div class="field-group">
         <div class="field">
           <label for="field-name">Item Name</label>
@@ -78,6 +113,14 @@
         <div class="field">
           <label for="field-price">Price ($)</label>
           <input type="text" id="field-price" inputmode="decimal" placeholder="e.g. 24.00">
+        </div>
+        <div class="field">
+          <label for="field-quantity">Quantity</label>
+          <input type="text" id="field-quantity" inputmode="numeric" placeholder="e.g. 1">
+        </div>
+        <div class="field">
+          <label for="field-location">Location</label>
+          <input type="text" id="field-location" placeholder="e.g. Shelf A2">
         </div>
       </div>
       <div class="result-actions">

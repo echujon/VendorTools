@@ -32,12 +32,21 @@ export function deleteRecord(id) {
   return records;
 }
 
+export function findByUniqueId(ocrText) {
+  const text = (ocrText || '').toLowerCase();
+  if (!text) return null;
+  return getRecords().find(r => r.uniqueId && text.includes(r.uniqueId.toLowerCase())) || null;
+}
+
 export function exportCSV() {
   const records = getRecords();
-  const rows = [['Name', 'Price', 'Stripe ID', 'Date']];
+  const rows = [['Unique ID', 'Name', 'Price', 'Quantity', 'Location', 'Stripe ID', 'Date']];
   records.forEach(r => rows.push([
+    `"${(r.uniqueId || '').replace(/"/g, '""')}"`,
     `"${(r.name || '').replace(/"/g, '""')}"`,
     r.price || '',
+    r.quantity || '',
+    `"${(r.location || '').replace(/"/g, '""')}"`,
     r.stripeId || '',
     r.createdAt || ''
   ]));
